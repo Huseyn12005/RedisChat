@@ -1,0 +1,113 @@
+﻿@{
+    ViewData["Title"] = "Chat Application";
+}
+
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-md-4 border rounded p-3">
+            <div class="d-flex mb-3">
+                <input type="text" id="channelInput" class="form-control me-2" placeholder="Enter Channel Name" />
+                <button class="btn btn-primary" id="createChannelButton">Create Channel</button>
+            </div>
+            <div id="channelsList" class="list-group">
+            </div>
+        </div>
+        <div class="col-md-8 border rounded p-3">
+            <h5 id="currentChannel" class="mb-3">Select a Channel</h5>
+
+            <div id="messagesContainer" class="border rounded p-3 mb-3" style="height: 300px; overflow-y: scroll;">
+            </div>
+
+            <div class="d-flex">
+                <input type="text" id="messageInput" class="form-control me-2" placeholder="Type Message" />
+                <button class="btn btn-success" id="sendMessageButton">Send</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.getElementById('createChannelButton').addEventListener('click', async () => {
+            const channelName = document.getElementById('channelInput').value.trim();
+            if (channelName) {
+                const response = await fetch('/Chat/CreateChannel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ channelName })
+                });
+
+                const result = await response.json();
+                if (result.success) {
+                    const channelList = document.getElementById('channelsList');
+                    const button = document.createElement('button');
+                    button.className = 'list-group-item list-group-item-action';
+                    button.textContent = result.channelName;
+                    button.onclick = () => loadChannel(result.channelName);
+                    channelList.appendChild(button);
+
+                    document.getElementById('channelInput').value = '';
+                } else {
+                    alert('Failed to create channel');
+                }
+            }
+        });
+
+        document.getElementById('sendMessageButton').addEventListener('click', async () => {
+            const message = document.getElementById('messageInput').value.trim();
+            const channelName = document.getElementById('currentChannel').textContent;
+            if (message && channelName !== 'Select a Channel') {
+                await fetch('/Chat/PublishMessage', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ channelName, message })
+                });
+
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'mb-2';
+                messageDiv.innerHTML = `<span class="badge bg-primary">${message}</span>`;
+                document.getElementById('messagesContainer').appendChild(messageDiv);
+                document.getElementById('messageInput').value = '';
+            }
+        });
+
+        async function loadChannel(channelName) {
+            document.getElementById('currentChannel').textContent = channelName;
+            document.getElementById('messagesContainer').innerHTML = '';
+
+            await fetch('/Chat/Subscribe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ channelName })
+            });
+
+            const messagesResponse = await fetch('/Chat/GetMessages?channelName=' + channelName);
+            const messages = await messagesResponse.json();
+
+            messages.forEach(message => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'mb-2';
+                messageDiv.innerHTML = `<span class="badge bg-primary">${message}</span>`;
+                document.getElementById('messagesContainer').appendChild(messageDiv);
+            });
+        }
+
+        window.onload = async () => {
+            await getChannels();
+        };
+
+        async function getChannels() {
+            const response = await fetch('/Chat/GetChannels');
+            const channels = await response.json();
+            const channelList = document.getElementById('channelsList');
+            channelList.innerHTML = '';
+            channels.forEach(channel => {
+                const button = document.createElement('button');
+                button.className = 'list-group-item list-group-item-action';
+                button.textContent = channel;
+                button.onclick = () => loadChannel(channel);
+                channelList.appendChild(button);
+            });
+        }
+    </script>
+}
